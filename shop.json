@@ -1,0 +1,16 @@
+{
+  "shop": {
+    "item_1": {
+      "name": "Item 1",
+      "price": 150
+    },
+    "item_2": {
+      "name": "Item 2",
+      "price": 50
+    },
+    "item_3": {
+      "name": "Item 3",
+      "price": 300
+    }
+  }
+}
