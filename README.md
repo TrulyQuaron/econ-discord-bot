@@ -16,7 +16,7 @@ INSTRUCTIONS ON HOW TO HOST THE BOT:
 4\. Run "main.py" and invite the bot using the link in the terminal! You should be set up and ready to go!
 
 
-
+---
 
 
 Setting up custom responses
@@ -36,7 +36,7 @@ Anything behind a '#' is called a comment, and it is meant for you!
 
 Have fun in editing your responses. Let me know if something doesn't work...
 
-
+---
 
 
 Setting up the shop
