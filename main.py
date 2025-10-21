@@ -394,16 +394,7 @@ async def balance(interaction: discord.Interaction, member: discord.Member = Non
 #     else:
 #         add_balance(interaction.user.id, amount)
 #         await interaction.response.send_message(f"You went to the balls mine and mined out {amount} balls!!!!")
-@bot.tree.command(name="gambleinfo", description="Shows gambling limits and cooldowns.")
-async def gambleinfo(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        f"**Gambling rules**\n"
-        f"- Min bet: {MIN_BET}\n"
-        f"- Max bet: {MAX_BET}\n"
-        f"- `/coinflip`: 1 use / 5s\n"
-        f"- `/slots`: 1 use / 10s\n",
-        ephemeral=True
-    )
+
 
 
 
@@ -903,3 +894,4 @@ with open("token.txt", "r") as f:
     token=f.read().strip()
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
