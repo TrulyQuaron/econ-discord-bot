@@ -509,26 +509,42 @@ async def balance(interaction: discord.Interaction, member: discord.Member = Non
 #         await interaction.response.send_message(f"You went to the balls mine and mined out {amount} balls!!!!")
 
 @bot.tree.command(name="execution", description="Start a vote to publicly execute someone.")
-@app_commands.describe(member="The member to vote kick", reason="Reason for public execution.")
-async def execute(interaction: discord.Interaction, member: discord.Member, reason: str = None):
+@app_commands.describe(member="The member to publicly execute", reason="Reason for public execution.")
+async def execution(interaction: discord.Interaction, member: discord.Member, reason: str = None):
     if member == interaction.user:
-        await interaction.response.send_message("You can't execute yourself", ephemeral=True)
+        await interaction.response.send_message("You can't execute yourself 💀", ephemeral=True)
         return
     if member == interaction.guild.me:
         await interaction.response.send_message("why me :cry:", ephemeral=True)
         return
+
+    guild_id = str(interaction.guild.id)
+    if guild_id in active_executions:
+        await interaction.response.send_message(
+            "There’s already an active public execution vote! Cancel it first with `/cancelexecution`.",
+            ephemeral=True
+        )
+        return
+
     votes_needed = 10
     embed = discord.Embed(
-        title="!! PUBLIC EXECUTION INITIATED !!",
-        description=f"Vote to PUBLICLY EXECUTE {member.mention} THEY HAVE BEEN CHARGED WITH {reason or 'absolutely NOTHING!!!!'}\nReact with 👍 to vote yes.\n⏳ Ends in 1 HOUR!!!",
+        title="⚖️ PUBLIC EXECUTION INITIATED ⚖️",
+        description=f"Vote to publicly execute {member.mention} for **{reason or 'absolutely NOTHING!!!'}**.\nReact with 👍 to vote yes.\n⏳ Ends in 1 hour!",
         color=discord.Color.red()
     )
     embed.set_footer(text=f"Started by {interaction.user.display_name}")
 
-    vote_msg = await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed)
     msg = await interaction.original_response()
     await msg.add_reaction("👍")
 
+    active_executions[guild_id] = {
+        "message_id": msg.id,
+        "target": member,
+        "starter": interaction.user.id,
+        "votes": set(),
+        "ended": False
+    }
 
     def check(reaction, user):
         return (
@@ -537,51 +553,67 @@ async def execute(interaction: discord.Interaction, member: discord.Member, reas
             and not user.bot
         )
 
-    # start listening for reactions
-    bot_votes = set()
     try:
         while True:
             reaction, user = await bot.wait_for("reaction_add", timeout=3600, check=check)
-            bot_votes.add(user.id)
+            if guild_id not in active_executions or active_executions[guild_id]["ended"]:
+                return  # cancelled or expired
 
-            current_votes = len(bot_votes)
+            active_executions[guild_id]["votes"].add(user.id)
+            current_votes = len(active_executions[guild_id]["votes"])
+
             if current_votes >= votes_needed:
-                await msg.reply(f"PUBLIC EXECUTION VOTE ACCEPTED WITH {current_votes} VOTES. PUBLIC EXECUTION OF {member.mention} BEGINNING IN 1 MINUTE**")
-            time.sleep(60)
-            await interaction.response.send_message(f"WE HAVE ALL GATHERED FOR THE PUBLIC EXECUTION OF {member.mention}. Do you have anything to say for yourself?")
-            time.sleep(3)
-            await interaction.response.send_message(f"I genuinely do not care. Everyone wants you dead anyway.")
-            executedbalance = get_balance(member.id)
-            remove_balance(member.id, executedbalance)
+                await msg.reply(f"✅ EXECUTION VOTE PASSED ({current_votes} votes)! Public execution of {member.mention} begins in 1 minute.")
+                await asyncio.sleep(60)
 
-            until = discord.utils.utcnow() + timedelta(minutes=5)
+                await msg.reply(f"⚔️ The crowd gathers. {member.mention}, any last words?")
+                await asyncio.sleep(3)
+                await msg.reply(f"💀 Silence. Time’s up.")
+                
+                executed_balance = get_balance(member.id)
+                remove_balance(member.id, executed_balance)
 
-            try:
-                await member.timeout(until, reason=reason or f"Public execution complete!! Collect my fumos")
-            except discord.Forbidden:
-                await interaction.response.send_message("HE... RESISTED?? sorry, public execution fail, seems like i have been overpowered BUT THEIR MONEY DISSAPEARED!!!! MUHAHAHAHAH!!!!", ephemeral=True)
+                try:
+                    until = discord.utils.utcnow() + timedelta(minutes=5)
+                    await member.timeout(until, reason=reason or "Public execution complete.")
+                    await msg.reply(f"💀 {member.mention} has been publicly executed. Justice (?) has been served.")
+                except discord.Forbidden:
+                    await msg.reply(f"😱 The target resisted! Their funds were confiscated instead.")
+                
+                active_executions.pop(guild_id, None)
                 return
-                    
 
-    except TimeoutError:
-        total_votes = len(bot_votes)
-        if total_votes < 30:
-            await msg.reply(f"❌ Execution rejected. Not enough votes.")
-        else:
-            await msg.reply(f"PUBLIC EXECUTION VOTE ACCEPTED WITH {total_votes} VOTES. PUBLIC EXECUTION OF {member.mention} BEGINNING IN 1 MINUTE")
-            time.sleep(60)
-            await interaction.response.send_message(f"WE HAVE ALL GATHERED FOR THE PUBLIC EXECUTION OF {member.mention}. Do you have anything to say for yourself?")
-            time.sleep(3)
-            await interaction.response.send_message(f"I genuinely do not care. Time for death.")
-            executedbalance = get_balance(member.id)
-            remove_balance(member.id, executedbalance)
-            until = discord.utils.utcnow() + timedelta(minutes=5)
+    except asyncio.TimeoutError:
+        if guild_id not in active_executions or active_executions[guild_id]["ended"]:
+            return
+        total_votes = len(active_executions[guild_id]["votes"])
+        await msg.reply(f"❌ Execution expired after 1 hour. Total votes: {total_votes}")
+        active_executions.pop(guild_id, None)
 
-            try:
-                await member.timeout(until, reason=reason or f"Public execution complete!! Good job!!")
-            except discord.Forbidden:
-                await interaction.response.send_message("HE... RESISTED?? sorry, public execution fail, seems like i have been overpowered BUT THEIR MONEY DISSAPEARED!!!! MUHAHAHAHAH!!!!", ephemeral=True)
-                return
+
+@bot.tree.command(name="cancelexecution", description="Cancel your active public execution vote.")
+async def cancelexecution(interaction: discord.Interaction):
+    guild_id = str(interaction.guild.id)
+
+    if guild_id not in active_executions:
+        await interaction.response.send_message("There is no active public execution vote to cancel.", ephemeral=True)
+        return
+
+    execution_data = active_executions[guild_id]
+    starter_id = execution_data["starter"]
+
+    if interaction.user.id != starter_id and not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("Only the person who started the execution (or an admin) can cancel it.", ephemeral=True)
+        return
+
+    active_executions[guild_id]["ended"] = True
+    target = execution_data["target"]
+    active_executions.pop(guild_id, None)
+
+    await interaction.response.send_message(f"🛑 The public execution of {target.mention} has been cancelled by {interaction.user.mention}.")
+
+
+
 
 
 # pay command
@@ -1078,6 +1110,7 @@ async def on_command_error(ctx, error):
 token=os.getenv("TOKEN")
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
 
 
 
