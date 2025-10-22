@@ -1,13 +1,14 @@
 # Made by Quaron. Discord -> @quaron
 # imports. VERY IMPORTANT. Removing even one of these would break the entire code.
 import discord
-from discord import app_commands, ui
+from discord import app_commands
 from discord.ext import commands
 import json
 import os
 import random
 from datetime import timedelta
 import time
+import discord
 # intents, newgen bs (important still)
 intents = discord.Intents.all()
 
@@ -43,7 +44,7 @@ def add_balance(user_id, amount):
             data = json.load(f)
 
     if user_id not in data:
-        data[user_id] = {"balance": 0}
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
 
     data[user_id]["balance"] += amount
 
@@ -59,7 +60,7 @@ def remove_balance(user_id, amount):
             data = json.load(f)
 
     if user_id not in data:
-        data[user_id] = {"balance": 0}
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
 
     data[user_id]["balance"] -= amount
     if data[user_id]["balance"] < 0:
@@ -83,7 +84,7 @@ def add_points(user_id, amount):
             data = json.load(f)
 
     if user_id not in data:
-        data[user_id] = {"points": 0}
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
 
     data[user_id]["points"] += amount
 
@@ -99,7 +100,7 @@ def remove_points(user_id, amount):
             data = json.load(f)
 
     if user_id not in data:
-        data[user_id] = {"points": 0}
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
 
     data[user_id]["points"] -= amount
     if data[user_id]["points"] < 0:
@@ -124,6 +125,9 @@ async def on_ready():
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(f"Awake! Latency is {round(bot.latency * 1000)}ms!")
 
+@bot.tree.command(name="code", description="Link to source code on GitHub!")
+async def code(interaction: discord.Interaction):
+    await interaction.response.send_message(f"Source code available and free to use on https://github.com/TrulyQuaron/econ-discord-bot/releases/ !")
 
 # kick command
 @bot.tree.command(name="kick", description="Kicks a user.")
@@ -197,90 +201,194 @@ async def shop(interaction: discord.Interaction):
 
 # Warn command
 
+from datetime import datetime
+
 @bot.tree.command(name="warn", description="Warns a user.")
-@app_commands.describe(member="The member to warn", reason="Reason for the warn.")
+@app_commands.describe(member="The member to warn", reason="Reason for the warning.")
 async def warn(interaction: discord.Interaction, member: discord.Member, reason: str = None):
     if not interaction.user.guild_permissions.kick_members:
         await interaction.response.send_message("You lack the permission to warn!", ephemeral=True)
-        print(f"Warn command attempted usage by {member.name}. Forbidden.")
+        print(f"Warn command attempted usage by {interaction.user.name}. Forbidden.")
         return
 
     if member == interaction.user:
-        await interaction.response.send_message("Thy cannot warn thyself!", ephemeral=True)
+        await interaction.response.send_message("You cannot warn yourself!", ephemeral=True)
         return
+
+    if member.bot:
+        await interaction.response.send_message("You can’t warn a bot.", ephemeral=True)
+        return
+
     if not os.path.exists(ECON_FILE) or os.stat(ECON_FILE).st_size == 0:
         data = {}
     else:
         with open(ECON_FILE, "r") as f:
             data = json.load(f)
-        user_id = str(member.id)
+
+    user_id = str(member.id)
+
 
     if user_id not in data:
-        data[user_id] = {"balance": 0,
-                         "warnings": 0}
-    data[user_id]["warnings"] += 1
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
+
+    if not isinstance(data[user_id].get("warnings"), list):
+        data[user_id]["warnings"] = []
+
+
+    new_warn = {
+        "reason": reason or "No reason provided.",
+        "moderator": interaction.user.name
+    }
+
+    data[user_id]["warnings"].append(new_warn)
+
+
     with open(ECON_FILE, "w") as f:
         json.dump(data, f, indent=4)
-    await interaction.response.send_message(f"Warn has been issued to {member.mention}. Reason: {reason or 'No reason provided'}.")
-    await user.send(f"You have recieved a warning in {interaction.guild.name}. Reason: {reason}")
 
-@bot.tree.command(name="timeout", description="Times out a user for a set amount of minutes.")
-@app_commands.describe(
-    member="The member to timeout",
-    minutes="Duration of timeout (in minutes)",
-    warn="Also warn the member?",
-    reason="Reason for the timeout (optional)"
-)
-async def timeout(
-    interaction: discord.Interaction,
-    member: discord.Member,
-    minutes: int,
-    warn: bool = False,
-    reason: str = None
-):
-    # permission check
+    await interaction.response.send_message(
+        f"Warn issued to {member.mention}. Reason: {reason or 'No reason provided.'}"
+    )
+
+
+
+@bot.tree.command(name="timeout", description="Times out a user for a set amount of minutes (0 removes timeout).")
+@app_commands.describe(member="The member to timeout",minutes="Duration in minutes (0 = remove timeout)",warn="Also add a warning to their record?",reason="Reason (optional)")
+async def timeout_cmd(interaction: discord.Interaction,member: discord.Member,minutes: int,warn: bool = False,reason: str | None = None):
+    # Permission checks
     if not interaction.user.guild_permissions.moderate_members:
-        await interaction.response.send_message("You lack the permission to timeout!", ephemeral=True)
-        print(f"Timeout command attempted usage by {member.name}. Forbidden.")
+        await interaction.response.send_message("You lack the **Moderate Members** permission.", ephemeral=True)
+        return
+    if not interaction.guild.me.guild_permissions.moderate_members:
+        await interaction.response.send_message("I’m missing the **Moderate Members** permission.", ephemeral=True)
         return
 
-    # sanity checks
-    if member == interaction.user:
-        await interaction.response.send_message("You cannot timeout yourself!", ephemeral=True)
+    if member.id == interaction.user.id:
+        await interaction.response.send_message("You can’t timeout yourself.", ephemeral=True)
         return
-    if member.bot:
-        await interaction.response.send_message("You cannot timeout bots.", ephemeral=True)
+    if member.top_role >= interaction.guild.me.top_role:
+        await interaction.response.send_message("Their top role is higher or equal to mine. I can’t timeout them.", ephemeral=True)
         return
 
-    # calculate timeout end time
-    until = discord.utils.utcnow() + timedelta(minutes=minutes)
+
+    until = None if minutes <= 0 else (discord.utils.utcnow() + timedelta(minutes=minutes))
+
 
     try:
-        await member.edit(timeout=until, reason=reason or f"Timeout by {interaction.user}")
+        if hasattr(member, "timeout"):  # modern
+            await member.timeout(until, reason=reason or f"Timeout by {interaction.user}")
+        else:
+            await member.timeout(until, reason=reason or f"Timeout by {interaction.user}")
     except discord.Forbidden:
-        await interaction.response.send_message("I don't have permission to timeout that user.", ephemeral=True)
+        await interaction.response.send_message("I don’t have permission or role position to timeout that member.", ephemeral=True)
+        return
+    except TypeError:
+        # In case kwargs mismatch on some versions, try the other method
+        try:
+            await member.timeout(until, reason=reason or f"Timeout by {interaction.user}")
+        except Exception as e:
+            await interaction.response.send_message(f"Failed to apply timeout: {e}", ephemeral=True)
+            return
+    except Exception as e:
+        await interaction.response.send_message(f"Failed to apply timeout: {e}", ephemeral=True)
         return
 
-    msg = f"{member.mention} has been timed out for **{minutes} minute(s)**."
-    if reason:
-        msg += f" Reason: {reason}"
-
-    # handle warn flag
     if warn:
         if not os.path.exists(ECON_FILE) or os.stat(ECON_FILE).st_size == 0:
             data = {}
         else:
             with open(ECON_FILE, "r") as f:
                 data = json.load(f)
-        user_id = str(member.id)
-        if user_id not in data:
-            data[user_id] = {"balance": 0, "warnings": 0}
-        data[user_id]["warnings"] += 1
+
+        uid = str(member.id)
+        if uid not in data:
+            data[uid] = {"balance": 0, "warnings": []}
+            new_warn = {
+        "reason": "Timed out.",
+        "moderator": interaction.user.name
+    }
+
+        data[user_id]["warnings"].append(new_warn)
+
         with open(ECON_FILE, "w") as f:
             json.dump(data, f, indent=4)
+
+
+    if until is None:
+        msg = f"Removed timeout for {member.mention}."
+    else:
+        msg = f"Timed out {member.mention} for **{minutes}** minute(s)."
+    if reason:
+        msg += f" Reason: {reason}"
+    if warn:
         msg += " A warning was also issued."
 
     await interaction.response.send_message(msg)
+@bot.tree.command(name="clearwarnings", description="Clears all or specific warnings for a user.")
+@app_commands.describe(
+    member="The member whose warnings you want to clear",
+    index="Optional: which warning number to clear (leave empty to clear all)"
+)
+async def clearwarnings(interaction: discord.Interaction, member: discord.Member, index: int = None):
+    # permission check
+    if not interaction.user.guild_permissions.kick_members:
+        await interaction.response.send_message("You lack permission to clear warnings!", ephemeral=True)
+        return
+
+    if not os.path.exists(ECON_FILE) or os.stat(ECON_FILE).st_size == 0:
+        await interaction.response.send_message("No economy file found.", ephemeral=True)
+        return
+
+    with open(ECON_FILE, "r") as f:
+        data = json.load(f)
+
+    user_id = str(member.id)
+    if user_id not in data or not data[user_id].get("warnings"):
+        await interaction.response.send_message(f"{member.name} has no warnings to clear.", ephemeral=True)
+        return
+
+    warnings_list = data[user_id]["warnings"]
+
+    # clear a specific warning
+    if index is not None:
+        if index < 1 or index > len(warnings_list):
+            await interaction.response.send_message(f"Invalid warning index. {member.name} only has {len(warnings_list)} warning(s).", ephemeral=True)
+            return
+
+        removed = warnings_list.pop(index - 1)
+        reason = removed.get("reason", "Unknown reason")
+        moderator = removed.get("moderator", "Unknown moderator")
+        await interaction.response.send_message(
+            f"🧹 Removed warning #{index} from {member.mention}.\n> **Reason:** {reason}\n> **Issued by:** {moderator}",
+            ephemeral=False
+        )
+
+    # clear all warnings
+    else:
+        data[user_id]["warnings"] = []
+        await interaction.response.send_message(f"🧹 Cleared all warnings for {member.mention}.")
+
+    with open(ECON_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+@bot.tree.command(name="warnings", description="Shows all warnings for a user.")
+async def warnings(interaction: discord.Interaction, member: discord.Member):
+    with open(ECON_FILE, "r") as f:
+        data = json.load(f)
+
+    user_id = str(member.id)
+    user_data = data.get(user_id, {})
+    warnings_list = user_data.get("warnings", [])
+
+    if not warnings_list:
+        await interaction.response.send_message(f"{member.name} has no warnings.", ephemeral=True)
+        return
+
+    formatted = "\n".join(
+        [f"⚠️ **{i+1}.** {w['reason']} — by *{w['moderator']}*" for i, w in enumerate(warnings_list)]
+    )
+
+    await interaction.response.send_message(f"**{member.name}’s Warnings:**\n{formatted}")
 
 # ---------------------------------------------------------------------------- ECONOMY ----------------------------------------------------------------------------
 # Economy setup. Messes with the 'econ.json' file. (all the economy is preserved there)
@@ -290,10 +398,12 @@ async def timeout(
 async def setup(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("Administrator permissions are required to run this command.")
-        print(f"Setup command attempted usage by {member.name}. Forbidden.")
+        print(f"Setup command attempted usage by {interaction.user.name}. Forbidden.")
         return
+
     guild = interaction.guild
 
+    # load or create econ file
     if not os.path.exists(ECON_FILE) or os.stat(ECON_FILE).st_size == 0:
         data = {}
     else:
@@ -304,17 +414,20 @@ async def setup(interaction: discord.Interaction):
     for member in guild.members:
         if member.bot:
             continue
+
         user_id = str(member.id)
         if user_id not in data:
-            data[user_id] = {"balance": 100,
-                             "points": 0,
-                             "warnings": 0}
+            data[user_id] = {"balance": 0, "points": 0, "warnings": []}
             added.append(member.name)
-
-    await interaction.response.send_message(f"Added {len(added)} members to the economy: {', '.join(added)}")
 
     with open(ECON_FILE, "w") as f:
         json.dump(data, f, indent=4)
+
+    await interaction.response.send_message(
+        f"Added {len(added)} members to the economy."
+    )
+
+
 
 
 @bot.tree.command(name="coinflip", description="Flip a coin for aureus.")
@@ -360,8 +473,7 @@ async def on_member_join(member):
 
 
     if user_id not in data:
-        data[user_id] = {"balance": 100,
-                         "warnings": 0}
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
 
     with open(ECON_FILE, "w") as f:
         json.dump(data, f, indent=4)
@@ -445,7 +557,7 @@ async def execute(interaction: discord.Interaction, member: discord.Member, reas
             until = discord.utils.utcnow() + timedelta(minutes=5)
 
             try:
-                await member.edit(timeout=until, reason=reason or f"Public execution complete!! Collect my fumos")
+                await member.timeout(until, reason=reason or f"Public execution complete!! Collect my fumos")
             except discord.Forbidden:
                 await interaction.response.send_message("HE... RESISTED?? sorry, public execution fail, seems like i have been overpowered BUT THEIR MONEY DISSAPEARED!!!! MUHAHAHAHAH!!!!", ephemeral=True)
                 return
@@ -466,7 +578,7 @@ async def execute(interaction: discord.Interaction, member: discord.Member, reas
             until = discord.utils.utcnow() + timedelta(minutes=5)
 
             try:
-                await member.edit(timeout=until, reason=reason or f"Public execution complete!! Good job!!")
+                await member.timeout(until, reason=reason or f"Public execution complete!! Good job!!")
             except discord.Forbidden:
                 await interaction.response.send_message("HE... RESISTED?? sorry, public execution fail, seems like i have been overpowered BUT THEIR MONEY DISSAPEARED!!!! MUHAHAHAHAH!!!!", ephemeral=True)
                 return
@@ -527,8 +639,8 @@ async def paycheck(interaction: discord.Interaction, role: discord.Role):
     
     for member in members_with_role:
         user_id = str(member.id)
-        if user_id not in data:
-            data[user_id] = {"balance": 100, "warnings": 0}
+    if user_id not in data:
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
         data[user_id]["balance"] = data[user_id].get("balance", 0) + amount
 
 
@@ -591,8 +703,8 @@ async def paycheckglobal(interaction: discord.Interaction):
         user_id = str(member.id)
 
 
-        if user_id not in data:
-            data[user_id] = {"balance": 0, "warnings": 0}
+    if user_id not in data:
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
 
         highest_pay = 0
         for role in member.roles:
@@ -649,7 +761,7 @@ async def tax(interaction: discord.Interaction, member: discord.Member):
 
     user_id = str(member.id)
     if user_id not in data:
-        data[user_id] = {"balance": 0, "warnings": 0}
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
 
 
     highest_tax = 0
@@ -687,8 +799,8 @@ async def taxglobal(interaction: discord.Interaction):
             continue
 
         user_id = str(member.id)
-        if user_id not in data:
-            data[user_id] = {"balance": 0, "warnings": 0}
+    if user_id not in data:
+        data[user_id] = {"balance": 0, "points": 0, "warnings": []}
 
         highest_tax = 0
         for role in member.roles:
@@ -963,12 +1075,9 @@ async def on_command_error(ctx, error):
         raise error  # re-raise other errors so you can debug them
 
 
-# reads the 'token.txt' file and defines it as a variable called 'token' which is later implemented down below.
-#with open("token.txt", "r") as f:
-#    token=f.read().strip()
-
 token=os.getenv("TOKEN")
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
 
 
