@@ -530,7 +530,7 @@ async def execution(interaction: discord.Interaction, member: discord.Member, re
 
     votes_needed = 10
     embed = discord.Embed(
-        title="⚖️ PUBLIC EXECUTION INITIATED ⚖️",
+        title="! ! PUBLIC EXECUTION INITIATED ! !",
         description=f"Vote to publicly execute {member.mention} for **{reason or 'absolutely NOTHING!!!'}**.\nReact with 👍 to vote yes.\n⏳ Ends in 1 hour!",
         color=discord.Color.red()
     )
@@ -568,9 +568,9 @@ async def execution(interaction: discord.Interaction, member: discord.Member, re
                 await msg.reply(f"✅ EXECUTION VOTE PASSED ({current_votes} votes)! Public execution of {member.mention} begins in 1 minute.")
                 await asyncio.sleep(60)
 
-                await msg.reply(f"⚔️ The crowd gathers. {member.mention}, any last words?")
+                await msg.reply(f"WELCOME TO {member.mention}'S PUBLIC EXECUTION!!, {member.name}, any last words?")
                 await asyncio.sleep(3)
-                await msg.reply(f"💀 Silence. Time’s up.")
+                await msg.reply(f"i don't care!!!!! commence execution!!!!!!")
                 
                 executed_balance = get_balance(member.id)
                 remove_balance(member.id, executed_balance)
@@ -578,9 +578,9 @@ async def execution(interaction: discord.Interaction, member: discord.Member, re
                 try:
                     until = discord.utils.utcnow() + timedelta(minutes=5)
                     await member.timeout(until, reason=reason or "Public execution complete.")
-                    await msg.reply(f"💀 {member.mention} has been publicly executed. Justice (?) has been served.")
+                    await msg.reply(f"{member.mention} has been publicly executed. You can see their face, like you know they'll appear convinently in 5 minutes")
                 except discord.Forbidden:
-                    await msg.reply(f"😱 The target resisted! Their funds were confiscated instead.")
+                    await msg.reply(f"THEY RESIST THE DEATH??? then i'll just rob them of their money haha goodbye")
                 
                 active_executions.pop(guild_id, None)
                 return
@@ -1112,6 +1112,7 @@ async def on_command_error(ctx, error):
 token=os.getenv("TOKEN")
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
 
 
 
