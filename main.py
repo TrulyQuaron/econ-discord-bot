@@ -513,6 +513,7 @@ async def balance(interaction: discord.Interaction, member: discord.Member = Non
 @bot.tree.command(name="execution", description="Start a vote to publicly execute someone.")
 @app_commands.describe(member="The member to publicly execute", reason="Reason for public execution.")
 async def execution(interaction: discord.Interaction, member: discord.Member, reason: str = None):
+    global active_executions
     if member == interaction.user:
         await interaction.response.send_message("You can't execute yourself 💀", ephemeral=True)
         return
@@ -595,6 +596,7 @@ async def execution(interaction: discord.Interaction, member: discord.Member, re
 
 @bot.tree.command(name="cancelexecution", description="Cancel your active public execution vote.")
 async def cancelexecution(interaction: discord.Interaction):
+    global active_executions
     guild_id = str(interaction.guild.id)
 
     if guild_id not in active_executions:
@@ -1112,6 +1114,7 @@ async def on_command_error(ctx, error):
 token=os.getenv("TOKEN")
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
 
 
 
