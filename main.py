@@ -964,10 +964,11 @@ async def on_command_error(ctx, error):
 
 
 # reads the 'token.txt' file and defines it as a variable called 'token' which is later implemented down below.
-with open("token.txt", "r") as f:
+#with open("token.txt", "r") as f:
 #    token=f.read().strip()
 
-    token=os.getenv("TOKEN")
+token=os.getenv("TOKEN")
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
 
