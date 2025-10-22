@@ -529,7 +529,7 @@ async def execution(interaction: discord.Interaction, member: discord.Member, re
         )
         return
 
-    votes_needed = 10
+    votes_needed = 6
     embed = discord.Embed(
         title="! ! PUBLIC EXECUTION INITIATED ! !",
         description=f"Vote to publicly execute {member.mention} for **{reason or 'absolutely NOTHING!!!'}**.\nReact with 👍 to vote yes.\n⏳ Ends in 1 hour!",
@@ -1114,6 +1114,7 @@ async def on_command_error(ctx, error):
 token=os.getenv("TOKEN")
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
 
 
 
