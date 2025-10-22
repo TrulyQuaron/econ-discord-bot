@@ -6,6 +6,7 @@ from discord.ext import commands
 import json
 import os
 import random
+import asyncio
 from datetime import timedelta
 import time
 import discord
@@ -15,6 +16,7 @@ intents = discord.Intents.all()
 # defining the bot, extremely important
 bot = commands.Bot(command_prefix="/", intents=intents)
 
+active_executions = {}
 
 # The beauty of Python (and pretty much any other programming language) is to reduce your work
 
@@ -1110,6 +1112,7 @@ async def on_command_error(ctx, error):
 token=os.getenv("TOKEN")
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
 
 
 
