@@ -707,7 +707,7 @@ async def removepoints(interaction: discord.Interaction, member: discord.Member,
         remove_points(memberid, amount)
         await interaction.response.send_message(f"{amount} points have been removed to {member.mention}!")
 
-@bot.tree.command(name="points", description="Gives a user points.")
+@bot.tree.command(name="points", description="Shows your current points amount.")
 async def points(interaction: discord.Interaction, member: discord.Member = None):
     if member == None:
         points = get_points(interaction.user.id)
@@ -1114,6 +1114,7 @@ async def on_command_error(ctx, error):
 token=os.getenv("TOKEN")
 # connects the code to the bot itself. IMPORTANT !!!
 bot.run(token)
+
 
 
 
